@@ -19,19 +19,22 @@ playerBiosFile = 'player_bios.parquet'
 athleteIDFile = 'ESPN_athlete_ids.parquet'
 espnFile = 'ESPN_NCAA_stats.parquet'
 sportsRefFile = 'SR_NCAA_stats.parquet'
+draftPickFile = 'draft_order.parquet'
 combinedNCAAFile = 'combined_NCAA_player_box.parquet'
 finalWNBAFeaturesFile = 'final_WNBA_features.parquet'
 finalNCAAFeaturesFile = 'final_NCAA_features.parquet'
 
 #load data sources configuration
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
 gitHubLink = 'https://api.github.com/repos/sportsdataverse/sportsdataverse-data/releases/tags/espn_wnba_player_boxscores'
 brScheduleURL = 'https://www.basketball-reference.com/wnba/years/'
 brGameURL = 'https://www.basketball-reference.com'
 srcbbURL = 'https://www.sports-reference.com/cbb/players/'
 espnAPIURL = 'http://sports.core.api.espn.com/v2/sports/basketball/leagues/wnba/athletes/'
-draftURL = 'https://www.wnba.com/wnbadraft/all-time'
+draftURL = 'https://www.basketball-reference.com/wnba/draft/#all_wnba_drafts'
 allStarsURL = 'https://www.acrossthetimeline.com/wnba/all-stars.html#start=1997-01-01'
 awardsURL = 'https://www.acrossthetimeline.com/wnba/awards.html#awards=mvp%2Casmvp%2Cccmvp%2Cfmvp%2Cpotw%2Cpotm%2Crotm%2Ccommonth%2Callw1%2Callw2%2Calld1%2Calld2%2Callrook%2Cdpoty%2Croty%2Cnoty%2Cswoty%2Cmip%2Csport%2Cdawn%2Ccomseason%2Calldec%2Calldech%2Ctop15%2Ctop20%2Cw25%2Cappoty%2Capdoty%2Cap6poty%2Capcpoty%2Caproty%2Capallrook%2Capmip%2Capcoty%2Cap1st%2Cap2nd%2Cappotw&start=1997-01-01'
+gDriveLink = 'https://drive.google.com/drive/folders/1gp96hX_OYUTe9Yspo4QCQyj2o4W4JSDv?usp=share_link'
 
 #scrape and data cleaning variables, change here to adjust scope of data retrieval
 yearsWNBAScheduleScrape = range(1997, 2004)

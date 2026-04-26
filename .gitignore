@@ -17,22 +17,9 @@
 /.idea/workspace.xml
 # User excluded files
 /notes for self
-/src/test.json
-/production.ipynb
 /results/
 /data/
-/src/test2.json
+/v2 Implementation/
+/src tests/
 /src/.env
-/src/tests.ipynb
-/src/test.json
-/src/test2.json
-/src/tests.ipynb
-/src/production.ipynb
-/src/athletes.json
-/src/athletes2.json
-/src/collegeAth.json
-/src/collegeAth2.json
-/src/seasons.json
-/src/stats.json
-/src/statslog.json
-/src/scrapped code.py
+

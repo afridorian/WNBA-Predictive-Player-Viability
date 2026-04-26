@@ -1,8 +1,6 @@
-import config
 import pandas as pd
 import requests
 import os
-import unicodedata
 
 #PARQUET DATA PRE-PROCESSING FUNCTIONS
 #download files from git repo
@@ -55,7 +53,7 @@ def normalize(filePath):
                        'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'fouls', 'plus_minus', 'points',
                        'athlete_jersey', 'team_score', 'opponent_team_id', 'opponent_team_score','weight','height','totalWNBASeasons',
                        'NCAA_athlete_id','totalNCAASeasons','games_played','two_point_field_goals_made','two_point_field_goals_attempted',
-                       'games_started'],
+                       'games_started','draft'],
                "float": ['field_goal_percentage','free_throw_percentage','three_point_field_goal_percentage','true_shooting_percentage','effective_field_goal_percentage',
                          'three_point_attempt_rate','free_throw_attempt_rate','offensive_rebound_percentage',
                          'defensive_rebound_percentage','total_rebound_percentage','assist_percentage','steal_percentage',
@@ -99,18 +97,6 @@ def normalize(filePath):
 
     parquetFile.to_parquet(filePath)
     print('File normalization complete.')
-    return parquetFile
+    return parquetFile #return df
 
-# if __name__ == "__main__":
-#     # url = gitHubLink
-#     filePath = config.dataDIR
-#     # fileRange = range(1998,2005)
-#     # outputPath = fileLocationCleaned
-#     # name = startingFileWNBA
-#     outputMe = '/Users/kmonroygill/Library/CloudStorage/GoogleDrive-monroygi@usc.edu/My Drive/Spring 2026/DSCI 510/dsci510_spring2026_final_project/data/player_box_1997.parquet'
-#
-#
-#     #debug functions
-#     #download_git(url, filePath)
-#     concat_files('/player_box_1997.parquet', filePath, f'{filePath}/test.parquet',range=range(2000,2001))
-#     #normalize(outputMe)
+

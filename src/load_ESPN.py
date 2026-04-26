@@ -121,10 +121,10 @@ def ESPN_scrape(API,playerID,outputPathPlayers,outputPathStats):
     pl = pd.DataFrame(playerBios)
     pl.to_parquet(outputPathPlayers)
     st = pd.DataFrame(playerStats)
-    st.to_parquet(f'{outputPathStats}/ESPN_NCAA_stats.parquet')
+    st.to_parquet(outputPathStats)
     end = dt.now()
     print(f'ESPN Scrape complete at {end.strftime("%Y-%m-%d %H:%M:%S")} with duration of {end-start}.')
-    return playerBios,playerStats
+    return playerBios
 
 def get_ESPN_athlete_id(filePath,outputPath):
     data = pd.read_parquet(filePath)
@@ -134,12 +134,3 @@ def get_ESPN_athlete_id(filePath,outputPath):
     print('Get ESPN athlete ID complete.')
     return players
 
-# if __name__ == "__main__":
-#     API = config.espnAPIURL
-#     playerID = [(3149391,"A'ja Wilson"),(286, 'Taj McWilliams-Franklin'),(4422426, ['Li Yueru','Yu Lieru']), (156, 'Katie Douglas')]#, (545, 'Lindsay Whalen'), (317, 'Wendy Palmer'), (349, 'Nykesha Sales'), (235, 'Asjha Jones'), (592, "Le'coe Willingham"), (93, 'Debbie Black'), (540, 'Jessica Brungo'), (541, 'Jennifer Derevjanik'), (542, 'Candace Futrell'), (222, 'Lauren Jackson'), (350, 'Sheri Sam'), (37, 'Betty Lennox'), (91, 'Sue Bird'), (411, 'Kamila Vodichkova'), (89, 'Tully Bevilaqua'), (35, 'Janell Burse')]
-#     oP = config.fileLocationPlayers
-#     oSS = config.fileLocationNCAA
-#
-#     # function debugging
-#     ESPN_scrape(API,playerID,oP,oSS)
-#     # get_athlete_id('/Users/kmonroygill/Library/CloudStorage/GoogleDrive-monroygi@usc.edu/My Drive/Spring 2026/DSCI 510/dsci510_spring2026_final_project/data/cleaned/combined_WNBA_player_box.parquet',config.fileLocationAthleteIDs)
