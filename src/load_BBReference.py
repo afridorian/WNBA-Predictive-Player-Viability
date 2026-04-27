@@ -208,7 +208,7 @@ def br_wnbabox_scrape(url,scheduleFile,outputPath):
                     if 'basic' in tables:
                         basicHeaders = ['athlete_display_name', 'minutes', 'field_goals_made', 'field_goals_attempted',
                                         'field_goal_percentage', 'three_point_field_goals_made','three_point_field_goals_attempted',
-                                        'three_point_field_goals_pct', 'free_throws_made','free_throws_attempted',
+                                        'three_point_field_goal_percentage', 'free_throws_made','free_throws_attempted',
                                         'free_throw_percentage','offensive_rebounds', 'defensive_rebounds', 'rebounds', 'assists',
                                         'steals','blocks', 'turnovers', 'fouls','points', 'plus_minus']
                         outputHeaders = dict(zip(headersList,basicHeaders))
@@ -281,9 +281,9 @@ def br_wnbabox_scrape(url,scheduleFile,outputPath):
             print(f'{game['game_date']} {game['home'][1]} vs {game['away'][1]} completed at {dt.now().strftime("%Y-%m-%d %H:%M:%S")}.')
         df = pd.DataFrame(gameStats)
         df.to_parquet(outputFileName)
-        end = dt.now()
-        print(f'Basketball Reference WNBA Box Scrape complete at {end.strftime("%Y-%m-%d %H:%M:%S")} with duration of {end - start}.')
-        return df
+    end = dt.now()
+    print(f'Basketball Reference WNBA Box Scrape complete at {end.strftime("%Y-%m-%d %H:%M:%S")} with duration of {end - start}.')
+    return df
 
 #get unique player names from WNBA and from ESPN scrape that have no NCAA stats
 def get_SR_athlete_names(athleteBios,allAthletes)->set:
@@ -413,7 +413,7 @@ def srcbb_ncaaplayer_scrape(url,players,outputPath):
                                      '3P%': 'avg_3p_fg_pct','2P': 'avg_2p_fg_made', '2PA': 'avg_2p_fg_attempt',
                                      '2P%': 'avg_2p_fg_pct','eFG%': 'avg_effective_fg_pct', 'FT': 'avg_ft_made',
                                      'FTA': 'avg_ft_attempt','FT%': 'avg_ft_pct','ORB': 'avg_off_reb',
-                                     'DRB': 'avg_def_reb', 'TRB': 'avg_rebs','AST': 'avg_assists',
+                                     'DRB': 'avg_def_reb', 'TRB': 'avg_rebounds','AST': 'avg_assists',
                                      'STL': 'avg_steals','BLK': 'avg_blocks', 'TOV': 'avg_turnovers',
                                      'PF': 'avg_fouls','PTS': 'avg_points','MP': 'avg_min'}
                         if headersList[c] in columnMap.keys(): #filter out unwanted data

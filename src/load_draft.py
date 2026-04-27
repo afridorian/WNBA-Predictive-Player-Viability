@@ -1,5 +1,4 @@
 import time
-
 import pandas as pd
 import re
 import requests
@@ -8,7 +7,7 @@ import json
 import config
 from datetime import datetime as dt
 
-#SINGLE TABLE WEB SCRAPE FUNCTIONS
+#DRAFT WEB SCRAPE DATA PRE-PROCESSING FUNCTIONS
 def draft_scrape(url,outputPath):
 
     start = dt.now()
@@ -65,17 +64,5 @@ def draft_scrape(url,outputPath):
     print(f'Draft data Scrape complete at {end.strftime("%Y-%m-%d %H:%M:%S")} with duration of {end - start}.')
     return draft
 
-def allstar_scrape(url):
-    pass
 
-def awards_scrape(url):
-    pass
 
-if __name__ == "__main__":
-    draftURL = config.draftURL
-    allStarsURL = config.allStarsURL
-    awardsURL = config.awardsURL
-
-    draft = draft_scrape(draftURL,(config.dataDirRaw / config.draftPickFile))
-    # allStar = allstar_scrape(allStarsURL)
-    # awards = awards_scrape(awardsURL)

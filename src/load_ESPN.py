@@ -2,7 +2,6 @@ import re
 import pandas as pd
 import requests
 from datetime import datetime as dt
-import config
 
 #ESPN DATA PRE-PROCESSING FUNCTIONS
 def ESPN_scrape(API,playerID,outputPathPlayers,outputPathStats):
@@ -23,7 +22,7 @@ def ESPN_scrape(API,playerID,outputPathPlayers,outputPathStats):
         if profAthPg.get('error'):
             bio = {'athlete_display_name': name, 'error': profAthPg['error']['message']}
             playerBios.append(bio)
-            print(f'{i} completed with no data found.')
+            print(f'{i[1]} completed with no data found.')
             continue
 
         # initialize the player bio
@@ -116,7 +115,7 @@ def ESPN_scrape(API,playerID,outputPathPlayers,outputPathStats):
                                     compiledStats[dictMapping[output['name']]] = output['value'] #update the stats dict with the values
                         playerStats.append(compiledStats) #update stats list with all stat values
         playerBios.append(bio)
-        print(f'{i} completed at {dt.now().strftime("%Y-%m-%d %H:%M:%S")}.')
+        print(f'{i[1]} completed at {dt.now().strftime("%Y-%m-%d %H:%M:%S")}.')
 
     pl = pd.DataFrame(playerBios)
     pl.to_parquet(outputPathPlayers)

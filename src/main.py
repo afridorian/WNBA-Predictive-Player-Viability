@@ -2,7 +2,7 @@ import config
 import load_parquet as lp
 import load_BBReference as bbr
 import load_ESPN as es
-import load_draft_allstar_awards as daa
+import load_draft as dr
 import processing as pr
 import numpy as np
 import pandas as pd
@@ -20,8 +20,8 @@ import gdown
 
 #variables for model training
 #change weight placed on viability and position specific stats in composite score; each position can we weighted independently
-guardWeight = 1
-forwardWeight = 1
+guardWeight = 2
+forwardWeight = 2
 centerWeight = 1
 scaler = StandardScaler()
 
@@ -39,11 +39,20 @@ randomState = 42
 
 def main(args):
 
+    # STEP 0. CREATE FILE DIRECTORIES
+    config.dataDirRaw.mkdir(parents=True, exist_ok=True)
+    config.dataDirCleaned.mkdir(parents=True, exist_ok=True)
+    config.resultsDir.mkdir(parents=True, exist_ok=True)
+    config.wnbaDir.mkdir(parents=True, exist_ok=True)
+    config.ncaaDir.mkdir(parents=True, exist_ok=True)
+    print('File directories created.')
+
     if args.load:
+
         # STEP 1. DOWNLOAD AND CACHE WNBA DATA
         lp.download_git(config.gitHubLink, config.wnbaDir)
         bbr.br_wnbaschedule_scrape(config.brScheduleURL, config.yearsWNBAScheduleScrape,config.wnbaDir / config.scheduleFile)
-        bbr.br_wnbabox_scrape(config.brGameURL, config.wnbaDir / config.scheduleFile, config.wnbaDir) #process will take 2hours 10mins for full dataset due to rate limiting
+        bbr.br_wnbabox_scrape(config.brGameURL, config.wnbaDir / config.scheduleFile, config.wnbaDir) #process will take 2hours 17mins for full dataset due to rate limiting
         lp.concat_files(config.wehoopConcatFiles, config.wnbaDir, config.wnbaDir / config.wehoopFile) #concat wehoop data
         lp.concat_files(config.brConcatFiles, config.wnbaDir, config.wnbaDir / config.basketballRefFile) #concat basketball reference data
         lp.normalize(config.wnbaDir / config.wehoopFile) #normalize wehoop data
@@ -52,19 +61,17 @@ def main(args):
 
         # STEP 2. DOWNLOAD AND CACHE NCAA DATA
         athleteID = es.get_ESPN_athlete_id(config.dataDirCleaned / config.combinedWNBAFile, config.ncaaDir / config.athleteIDFile) #generate list of player names and espn player IDs from WNBA data
-        es.ESPN_scrape(config.espnAPIURL, athleteID, config.dataDirRaw / config.playerBiosFile, config.ncaaDir / config.espnFile) #process will take 6 minutes for full dataset
+        es.ESPN_scrape(config.espnAPIURL, athleteID, config.dataDirRaw / config.playerBiosFile, config.ncaaDir / config.espnFile) #process will take 7 minutes for full dataset
         playerBios = lp.normalize(config.dataDirRaw / config.playerBiosFile) #normalize player bios
         missingAthletes = bbr.get_SR_athlete_names(playerBios, WNBAData) #get list of players with no NCAA stats
-        bbr.srcbb_ncaaplayer_scrape(config.srcbbURL, missingAthletes, config.ncaaDir / config.sportsRefFile) #process will take 1 hour 10 mins for full dataset
+        bbr.srcbb_ncaaplayer_scrape(config.srcbbURL, missingAthletes, config.ncaaDir / config.sportsRefFile) #process will take 1 hour 7 mins for full dataset due to rate limiting
         lp.normalize(config.ncaaDir / config.espnFile)
         lp.normalize(config.ncaaDir / config.sportsRefFile)
         lp.concat_files(config.concatNCAAFiles, config.ncaaDir, config.dataDirCleaned / config.combinedNCAAFile) #combine both ncaa data sources, store as variable (filepath) to work with or access again via data cache
 
-        # STEP 3. DOWNLOAD DRAFT, AWARDS, AND ALL-STAR DATA
-        daa.draft_scrape(config.draftURL,config.dataDirRaw / config.draftPickFile)
+        # STEP 3. DOWNLOAD AND CACHE DRAFT DATA
+        dr.draft_scrape(config.draftURL, config.dataDirRaw / config.draftPickFile)
         lp.normalize(config.dataDirRaw / config.draftPickFile)
-
-        #v2 implementation for awards and all-star
 
         # STEP 4. PROCESS STATISTICS AND MISSING VALUES FOR FEATURES, DROP ATHLETES WITH MISSING NECESSARY ATTRIBUTES FROM THE DATASET
         #load cached parquets to dfs
@@ -113,10 +120,10 @@ def main(args):
         WNBAData['drive_aggression'] = pr.compute_ratios(WNBAData, 'free_throws_attempted', 'field_goals_attempted')
         WNBAData['rebound_share'] = pr.compute_ratios(WNBAData, 'rebounds', 'team_rebounds')
         WNBAData['usage_percentage'] = WNBAData['usage_percentage'].fillna((((WNBAData['field_goals_attempted'] + .44 * WNBAData['free_throws_attempted'] + WNBAData['turnovers']) *(WNBAData['team_minutes']/5))/(WNBAData['minutes']*WNBAData['team_metric']))*100).round(1)
-        WNBAData[config.featureStatsAvgsWNBA] = WNBAData[config.featureStatsAvgsWNBA].apply(pd.to_numeric,errors='coerce')  # normalize numerica cols
+        WNBAData[config.featureStatsWNBA] = WNBAData[config.featureStatsWNBA].apply(pd.to_numeric, errors='coerce')  # normalize numerica cols
 
         #Career totals then averages for final WNBA feature set
-        finalWNBAFeatures = WNBAData.groupby(['athlete_display_name', 'athlete_position_abbreviation'])[config.featureStatsTotalsWNBA].mean()
+        finalWNBAFeatures = WNBAData.groupby(['athlete_display_name', 'athlete_position_abbreviation'])[[i for i in config.featureStatsWNBA if i not in ['games_started']]].mean()
         finalWNBAFeatures['total_minutes'] = WNBAData.groupby(['athlete_display_name', 'athlete_position_abbreviation'])['minutes'].sum()
         finalWNBAFeatures['games_started'] = WNBAData[WNBAData['games_started'] == True].groupby(['athlete_display_name', 'athlete_position_abbreviation']).size()
         finalWNBAFeatures['total_games'] = WNBAData[WNBAData['minutes'] > 0].groupby(['athlete_display_name', 'athlete_position_abbreviation']).size()
@@ -136,7 +143,7 @@ def main(args):
 
         #NCAA feature variables
         #career totals then averages for the final feature set
-        finalNCAAFeatures = NCAAData.groupby(['athlete_display_name', 'athlete_position_abbreviation'])[config.featureStatsNCAA].sum()
+        finalNCAAFeatures = NCAAData.groupby(['athlete_display_name', 'athlete_position_abbreviation'])[config.sumFeaturesNCAA].sum()
         finalNCAAFeatures['total_seasons'] = NCAAData.groupby(['athlete_display_name', 'athlete_position_abbreviation'])['season'].nunique()
         finalNCAAFeatures['total_minutes'] = finalNCAAFeatures['minutes']
         finalNCAAFeatures['field_goal_percentage'] = pr.compute_ratios(finalNCAAFeatures, 'field_goals_made', 'field_goals_attempted')
@@ -154,11 +161,11 @@ def main(args):
         finalNCAAFeatures['turnovers_per_minute'] = pr.compute_ratios(finalNCAAFeatures, 'turnovers', 'minutes')
         finalNCAAFeatures['perimeter_shooting'] = pr.compute_ratios(finalNCAAFeatures, 'three_point_field_goals_attempted', 'field_goals_attempted')
         finalNCAAFeatures['drive_aggression'] = pr.compute_ratios(finalNCAAFeatures, 'free_throws_attempted', 'field_goals_attempted')
-        finalNCAAFeatures[config.featureStatsAvgsNCAA] = finalNCAAFeatures[config.featureStatsAvgsNCAA].astype(float).apply(pd.to_numeric, errors='coerce')  # normalize numerica cols
+        finalNCAAFeatures[config.featureStatsNCAA] = finalNCAAFeatures[config.featureStatsNCAA].astype(float).apply(pd.to_numeric, errors='coerce')  # normalize numerica cols
         finalNCAAFeatures = finalNCAAFeatures.reset_index()
-        finalNCAAFeatures.loc[:, config.featureStatsAvgsNCAA] = (finalNCAAFeatures.loc[:, config.featureStatsAvgsNCAA].div(finalNCAAFeatures['games_played'].astype(float), axis=0))
+        finalNCAAFeatures.loc[:, config.featureStatsNCAA] = (finalNCAAFeatures.loc[:, config.featureStatsNCAA].div(finalNCAAFeatures['games_played'].astype(float), axis=0))
         finalNCAAFeatures[['total_minutes', 'minutes']] = finalNCAAFeatures[['total_minutes', 'minutes']].fillna(0)
-        finalNCAAFeatures['athlete_position_abbreviation'] = finalWNBAFeatures['athlete_position_abbreviation']
+        finalNCAAFeatures['athlete_position_abbreviation'] = finalWNBAFeatures['athlete_position_abbreviation'] #conform NCAA positions to WNBA positions
         finalNCAAFeatures.to_parquet(config.dataDirCleaned / config.finalNCAAFeaturesFile) #store features for visualization
         print(f'NCAA features generated and saved to {config.dataDirCleaned}')
 
@@ -171,20 +178,18 @@ def main(args):
         finalWNBAFeatures = pd.read_parquet(config.dataDirCleaned / config.finalWNBAFeaturesFile)
         finalNCAAFeatures = pd.read_parquet(config.dataDirCleaned / config.finalNCAAFeaturesFile)
 
-        #create class objects (v2 implementation for web visualization)
-
         #split data frame to get position specific dfs and fill NA stats with median of group
         guards = finalWNBAFeatures[finalWNBAFeatures['athlete_position_abbreviation'] == 'G']
-        guards = guards.replace([np.inf, -np.inf], pd.NA).fillna(guards[config.featureStatsAvgsWNBA].median())
+        guards = guards.replace([np.inf, -np.inf], pd.NA).fillna(guards[config.featureStatsWNBA].median())
         forwards = finalWNBAFeatures[finalWNBAFeatures['athlete_position_abbreviation'] == 'F']
-        forwards = forwards.replace([np.inf, -np.inf], pd.NA).fillna(forwards[config.featureStatsAvgsWNBA].median())
+        forwards = forwards.replace([np.inf, -np.inf], pd.NA).fillna(forwards[config.featureStatsWNBA].median())
         centers = finalWNBAFeatures[finalWNBAFeatures['athlete_position_abbreviation'] == 'C']
-        centers = centers.replace([np.inf, -np.inf], pd.NA).fillna(centers[config.featureStatsAvgsWNBA].median())
+        centers = centers.replace([np.inf, -np.inf], pd.NA).fillna(centers[config.featureStatsWNBA].median())
 
         #z-score normalization for composite features
-        guardsScaled = pd.DataFrame(scaler.fit_transform(guards[(config.featureStatsAvgsWNBA + ['total_games', 'total_minutes','total_seasons','game_availability_percentage'])]),columns=config.featureStatsAvgsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'],index=guards.index)
-        forwardsScaled = pd.DataFrame(scaler.fit_transform(forwards[(config.featureStatsAvgsWNBA + ['total_games', 'total_minutes','total_seasons','game_availability_percentage'])]),columns=config.featureStatsAvgsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'],index=forwards.index)
-        centersScaled = pd.DataFrame(scaler.fit_transform(centers[(config.featureStatsAvgsWNBA + ['total_games', 'total_minutes','total_seasons','game_availability_percentage'])]),columns=config.featureStatsAvgsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'],index=centers.index)
+        guardsScaled = pd.DataFrame(scaler.fit_transform(guards[(config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'])]), columns=config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'], index=guards.index)
+        forwardsScaled = pd.DataFrame(scaler.fit_transform(forwards[(config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'])]), columns=config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'], index=forwards.index)
+        centersScaled = pd.DataFrame(scaler.fit_transform(centers[(config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'])]), columns=config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'], index=centers.index)
 
         #generate composite score and standard deviation
         guardCompositeScore = az.composite_score(guardsScaled,'guard',guardWeight)
@@ -228,19 +233,19 @@ def main(args):
         # STEP 6. TRAIN MODEL AND FITTING
         #separate features by position and fill NA stats with median of group
         modelGuards = finalNCAAFeatures[finalNCAAFeatures['athlete_position_abbreviation'] == 'G']
-        modelGuards = modelGuards.replace([np.inf, -np.inf], pd.NA).fillna(modelGuards[config.featureStatsAvgsNCAA].median())
+        modelGuards = modelGuards.replace([np.inf, -np.inf], pd.NA).fillna(modelGuards[config.featureStatsNCAA].median())
         modelForwards = finalNCAAFeatures[finalNCAAFeatures['athlete_position_abbreviation'] == 'F']
-        modelForwards = modelForwards.replace([np.inf, -np.inf], pd.NA).fillna(modelForwards[config.featureStatsAvgsNCAA].median())
+        modelForwards = modelForwards.replace([np.inf, -np.inf], pd.NA).fillna(modelForwards[config.featureStatsNCAA].median())
         modelCenters = finalNCAAFeatures[finalNCAAFeatures['athlete_position_abbreviation'] == 'C']
-        modelCenters = modelCenters.replace([np.inf, -np.inf], pd.NA).fillna(modelCenters[config.featureStatsAvgsNCAA].median())
+        modelCenters = modelCenters.replace([np.inf, -np.inf], pd.NA).fillna(modelCenters[config.featureStatsNCAA].median())
 
         # z-score normalization NCAA features
-        modelGuardsScaled = pd.DataFrame(scaler.fit_transform(modelGuards[(config.featureStatsAvgsNCAA + ['total_seasons','total_minutes','games_played'])]),columns=config.featureStatsAvgsNCAA + ['total_seasons','total_minutes','games_played'],index=guards.index)
-        modelForwardsScaled = pd.DataFrame(scaler.fit_transform(modelForwards[(config.featureStatsAvgsNCAA + ['total_seasons','total_minutes','games_played'])]),columns=config.featureStatsAvgsNCAA + ['total_seasons','total_minutes','games_played'], index=forwards.index)
-        modelCentersScaled = pd.DataFrame(scaler.fit_transform(modelCenters[(config.featureStatsAvgsNCAA + ['total_seasons','total_minutes','games_played'])]),columns=config.featureStatsAvgsNCAA + ['total_seasons','total_minutes','games_played'],index=centers.index)
+        modelGuardsScaled = pd.DataFrame(scaler.fit_transform(modelGuards[(config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'])]), columns=config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'], index=guards.index)
+        modelForwardsScaled = pd.DataFrame(scaler.fit_transform(modelForwards[(config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'])]), columns=config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'], index=forwards.index)
+        modelCentersScaled = pd.DataFrame(scaler.fit_transform(modelCenters[(config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'])]), columns=config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'], index=centers.index)
 
         #guards
-        gXTrain, gXTest, gYTrain, gYtest = train_test_split(modelGuardsScaled[config.featureStatsAvgsNCAA + ['total_seasons','total_minutes','games_played']],guardCompositeScore['tier'],test_size=testSize,random_state=randomState)
+        gXTrain, gXTest, gYTrain, gYtest = train_test_split(modelGuardsScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], guardCompositeScore['tier'], test_size=testSize, random_state=randomState)
         dt.fit(gXTrain,gYTrain)
         gyPredDT = dt.predict(gXTest)
         accuracyGuardDT = accuracy_score(gYtest, gyPredDT)
@@ -255,7 +260,7 @@ def main(args):
         print(f'Ensemble performance for Guards. Accuracy: {accuracyGuardEN}. Report: {reportGuardEN}. Confusion Matrix: {cmGuardEN}')
 
         #forwards
-        fXTrain, fXTest, fYTrain, fYtest = train_test_split(modelForwardsScaled[config.featureStatsAvgsNCAA + ['total_seasons', 'total_minutes', 'games_played']],forwardCompositeScore['tier'], test_size=testSize, random_state=randomState)
+        fXTrain, fXTest, fYTrain, fYtest = train_test_split(modelForwardsScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], forwardCompositeScore['tier'], test_size=testSize, random_state=randomState)
         dt.fit(fXTrain, fYTrain)
         fyPredDT = dt.predict(fXTest)
         accuracyForwardDT = accuracy_score(fYtest, fyPredDT)
@@ -270,7 +275,7 @@ def main(args):
         print(f'Ensemble performance for Forwards. Accuracy: {accuracyForwardEN}. Report: {reportForwardEN}. Confusion Matrix: {cmForwardEN}')
 
         #centers
-        cXTrain, cXTest, cYTrain, cYtest = train_test_split(modelCentersScaled[config.featureStatsAvgsNCAA + ['total_seasons', 'total_minutes', 'games_played']],centerCompositeScore['tier'], test_size=testSize, random_state=randomState)
+        cXTrain, cXTest, cYTrain, cYtest = train_test_split(modelCentersScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], centerCompositeScore['tier'], test_size=testSize, random_state=randomState)
         dt.fit(cXTrain, cYTrain)
         cyPredDT = dt.predict(cXTest)
         accuracyCenterDT = accuracy_score(cYtest, cyPredDT)
