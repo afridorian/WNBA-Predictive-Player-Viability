@@ -107,5 +107,6 @@ weighting set to 1. The mean square error showed regression predictions have an 
 Compared to the regression analysis, the ensemble model was able to achieve up to 44% accuracy for centers, frequently 
 reaching accuracy levels in the 30% range for guards and forwards, depending on weighting. 
 
-The NCAA feature set included in this model has a predictive power that often exceeds draft position. The model shows 
-potential to support drafting by identifying performance patterns within NCAA data that are indicative of WNBA success.
+The NCAA feature set included in this model has a predictive power that often exceeds draft position. The ensemble model 
+shows potential to support teams with draft selection by identifying performance patterns within NCAA data that are indicative 
+of WNBA success.
