@@ -1,5 +1,5 @@
 #create a composite score
-def composite_score(df,position,weight):
+def composite_score(df,position,weightLongevity=1.5,weightRole=1):
     #group stats by category and take average
     scoring = df[['field_goals_attempted','three_point_field_goals_attempted','free_throws_attempted','field_goals_made','three_point_field_goals_made','free_throws_made','points']].mean(axis=1)
     efficiency = df[['field_goal_percentage','free_throw_percentage','three_point_field_goal_percentage','true_shooting_percentage','points_per_minute','rebounds_per_minute','blocks_per_minute','steals_per_minute']].mean(axis=1)
@@ -14,6 +14,6 @@ def composite_score(df,position,weight):
         role = df[['offensive_rebounds', 'defensive_rebounds', 'three_point_attempt_rate', 'drive_aggression','perimeter_shooting', 'rebound_share']].mean(axis=1)
     elif position == 'center':
         role = df[['offensive_rebounds','defensive_rebounds','rebound_share','free_throw_attempt_rate']].mean(axis=1)
-    score = scoring + efficiency + playmaking + defense - negativePerformance + (longevity*weight) + (role*weight) #assign different weights based on feature tuning
+    score = scoring + efficiency + playmaking + defense - negativePerformance + (longevity*weightLongevity) + (role*weightRole) #assign different weights based on feature tuning
     return score
 
