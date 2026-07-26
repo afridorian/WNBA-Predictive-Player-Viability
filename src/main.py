@@ -7,7 +7,6 @@ import processing as pr
 import numpy as np
 import pandas as pd
 import analyze as az
-from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -18,24 +17,17 @@ import seaborn as sns
 import argparse
 import gdown
 
-#variables for model training
-#change weight placed on viability and position specific stats in composite score; each position can we weighted independently
-guardWeight = 2
-forwardWeight = 2
-centerWeight = 1
-scaler = StandardScaler()
-
 #determine breakpoints for composite tiering. as set, there are 5 tiers of player but can be adjusted based on use case
-tierQCut = [0, 0.15, 0.40, 0.65, 0.90, 1.00]
+tierQCut = [0,.0228,.1587,.8413,.9772, 1.00] #cuts based on standard normal distribution STDs. original arbitrary % based cuts - [0, 0.15, 0.40, 0.65, 0.90, 1.00]
 tierLabels = [5,4,3,2,1] #must be list of int
 targetNames = ['Not Viable','Roster Fillers','Bench Backups','Core Performers','Elite'] #corresponding string labels
 
-#model tuning params
-dt = DecisionTreeClassifier()
-en = RandomForestClassifier(n_estimators=100, random_state=42)
+#models and tuning params
+dt = DecisionTreeClassifier(random_state=14)
+en = RandomForestClassifier(n_estimators=100, random_state=14)
 rg = LinearRegression()
 testSize = .2
-randomState = 42
+randomState = 14
 
 def main(args):
 
@@ -171,7 +163,7 @@ def main(args):
 
     if args.evaluation:
 
-        # STEP 5. CREATE PLAYER CLASSES AND GENERATE COMPOSITE SCORE TARGET
+        # STEP 5. CREATE PLAYER CLASSES AND GENERATE COMPOSITE SCORE (CLASSIFICATION TARGET)
         # load cached parquet to df
         if args.dataURL:
             gdown.download_folder(args.dataURL, config.dataDirCleaned)
@@ -179,24 +171,17 @@ def main(args):
         finalNCAAFeatures = pd.read_parquet(config.dataDirCleaned / config.finalNCAAFeaturesFile)
 
         #split data frame to get position specific dfs and fill NA stats with median of group
-        guards = finalWNBAFeatures[finalWNBAFeatures['athlete_position_abbreviation'] == 'G']
-        guards = guards.replace([np.inf, -np.inf], pd.NA).fillna(guards[config.featureStatsWNBA].median())
-        forwards = finalWNBAFeatures[finalWNBAFeatures['athlete_position_abbreviation'] == 'F']
-        forwards = forwards.replace([np.inf, -np.inf], pd.NA).fillna(forwards[config.featureStatsWNBA].median())
-        centers = finalWNBAFeatures[finalWNBAFeatures['athlete_position_abbreviation'] == 'C']
-        centers = centers.replace([np.inf, -np.inf], pd.NA).fillna(centers[config.featureStatsWNBA].median())
+        guards, forwards, centers = pr.fill_missing_values(finalWNBAFeatures,config.positionAbbvr)
 
         #z-score normalization for composite features
-        guardsScaled = pd.DataFrame(scaler.fit_transform(guards[(config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'])]), columns=config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'], index=guards.index)
-        forwardsScaled = pd.DataFrame(scaler.fit_transform(forwards[(config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'])]), columns=config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'], index=forwards.index)
-        centersScaled = pd.DataFrame(scaler.fit_transform(centers[(config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'])]), columns=config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'], index=centers.index)
+        guardsScaled,forwardsScaled,centersScaled = pr.normalize_features([guards,forwards,centers],config.featureStatsWNBA + ['total_games', 'total_minutes', 'total_seasons', 'game_availability_percentage'])
 
         #generate composite score and standard deviation
-        guardCompositeScore = az.composite_score(guardsScaled,'guard',guardWeight)
+        guardCompositeScore = pr.composite_score(guardsScaled,'guard')
         print(f'Guard Standard Deviation: {round(guardCompositeScore.std(),3)}')
-        forwardCompositeScore = az.composite_score(forwardsScaled, 'forward', forwardWeight)
+        forwardCompositeScore = pr.composite_score(forwardsScaled, 'forward')
         print(f'Forward Standard Deviation: {round(forwardCompositeScore.std(),3)}')
-        centerCompositeScore = az.composite_score(centersScaled, 'center', centerWeight)
+        centerCompositeScore = pr.composite_score(centersScaled, 'center')
         print(f'Center Standard Deviation: {round(centerCompositeScore.std(),3)}')
 
         #create histograms of player performance distributions across positions
@@ -232,20 +217,13 @@ def main(args):
 
         # STEP 6. TRAIN MODEL AND FITTING
         #separate features by position and fill NA stats with median of group
-        modelGuards = finalNCAAFeatures[finalNCAAFeatures['athlete_position_abbreviation'] == 'G']
-        modelGuards = modelGuards.replace([np.inf, -np.inf], pd.NA).fillna(modelGuards[config.featureStatsNCAA].median())
-        modelForwards = finalNCAAFeatures[finalNCAAFeatures['athlete_position_abbreviation'] == 'F']
-        modelForwards = modelForwards.replace([np.inf, -np.inf], pd.NA).fillna(modelForwards[config.featureStatsNCAA].median())
-        modelCenters = finalNCAAFeatures[finalNCAAFeatures['athlete_position_abbreviation'] == 'C']
-        modelCenters = modelCenters.replace([np.inf, -np.inf], pd.NA).fillna(modelCenters[config.featureStatsNCAA].median())
+        ncaaGuards,ncaaForwards,ncaaCenters = pr.fill_missing_values(finalNCAAFeatures,config.positionAbbvr)
 
         # z-score normalization NCAA features
-        modelGuardsScaled = pd.DataFrame(scaler.fit_transform(modelGuards[(config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'])]), columns=config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'], index=guards.index)
-        modelForwardsScaled = pd.DataFrame(scaler.fit_transform(modelForwards[(config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'])]), columns=config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'], index=forwards.index)
-        modelCentersScaled = pd.DataFrame(scaler.fit_transform(modelCenters[(config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'])]), columns=config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'], index=centers.index)
+        ncaaGuardsScaled, ncaaForwardsScaled, ncaaCentersScaled = pr.normalize_features([ncaaGuards,ncaaForwards,ncaaCenters],config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played'])
 
         #guards
-        gXTrain, gXTest, gYTrain, gYtest = train_test_split(modelGuardsScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], guardCompositeScore['tier'], test_size=testSize, random_state=randomState)
+        gXTrain, gXTest, gYTrain, gYtest = train_test_split(ncaaGuardsScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], guardCompositeScore['tier'], test_size=testSize, random_state=randomState)
         dt.fit(gXTrain,gYTrain)
         gyPredDT = dt.predict(gXTest)
         accuracyGuardDT = accuracy_score(gYtest, gyPredDT)
@@ -260,7 +238,7 @@ def main(args):
         print(f'Ensemble performance for Guards. Accuracy: {accuracyGuardEN}. Report: {reportGuardEN}. Confusion Matrix: {cmGuardEN}')
 
         #forwards
-        fXTrain, fXTest, fYTrain, fYtest = train_test_split(modelForwardsScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], forwardCompositeScore['tier'], test_size=testSize, random_state=randomState)
+        fXTrain, fXTest, fYTrain, fYtest = train_test_split(ncaaForwardsScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], forwardCompositeScore['tier'], test_size=testSize, random_state=randomState)
         dt.fit(fXTrain, fYTrain)
         fyPredDT = dt.predict(fXTest)
         accuracyForwardDT = accuracy_score(fYtest, fyPredDT)
@@ -275,7 +253,7 @@ def main(args):
         print(f'Ensemble performance for Forwards. Accuracy: {accuracyForwardEN}. Report: {reportForwardEN}. Confusion Matrix: {cmForwardEN}')
 
         #centers
-        cXTrain, cXTest, cYTrain, cYtest = train_test_split(modelCentersScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], centerCompositeScore['tier'], test_size=testSize, random_state=randomState)
+        cXTrain, cXTest, cYTrain, cYtest = train_test_split(ncaaCentersScaled[config.featureStatsNCAA + ['total_seasons', 'total_minutes', 'games_played']], centerCompositeScore['tier'], test_size=testSize, random_state=randomState)
         dt.fit(cXTrain, cYTrain)
         cyPredDT = dt.predict(cXTest)
         accuracyCenterDT = accuracy_score(cYtest, cyPredDT)
@@ -299,111 +277,6 @@ def main(args):
         r2 = rg.score(regX, regY)
         mse = mean_squared_error(regY,yPred)
         print(f'Regression - Draft->Tier. R2: {r2}. Mean Square Error: {mse}.')
-
-        #visualizations
-        positions = [f'Center-W{centerWeight}', f'Forward-W{forwardWeight}',f'Guard-W{guardWeight}']#['Center','Forward','Guard']
-        dtViz = [accuracyCenterDT,accuracyForwardDT,accuracyGuardDT]
-        enViz = [accuracyCenterEN,accuracyForwardEN,accuracyGuardEN]
-        x = np.arange(len(positions))
-        width = .25
-
-        #decision tree charts
-        #bar
-        plt.figure(figsize=(8, 5))
-        plt.bar(x, dtViz, width,color=['#009CDE','#050707','#F57B20'])
-        plt.xticks(x, positions)
-        plt.ylabel('Accuracy')
-        plt.title('Decision Tree Accuracy by Position')
-        plt.savefig(f'{config.resultsDir}/Decision_Tree_Accuracy.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        #confusion matrixes
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cmGuardDT, annot=True, fmt='d', cmap='Oranges', xticklabels=targetNames, yticklabels=targetNames)
-        plt.title(f'Guard Decision Tree Confusion Matrix - Weight {guardWeight}')
-        plt.xlabel('Predicted Label')
-        plt.xticks(rotation=25)
-        plt.ylabel('True Label')
-        plt.savefig(f'{config.resultsDir}/Decision_Tree_Guard_CM_Weight{guardWeight}.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cmForwardDT, annot=True, fmt='d', cmap='Greys', xticklabels=targetNames, yticklabels=targetNames)
-        plt.title(f'Forward Decision Tree Confusion Matrix - Weight {forwardWeight}')
-        plt.xlabel('Predicted Label')
-        plt.xticks(rotation=25)
-        plt.ylabel('True Label')
-        plt.savefig(f'{config.resultsDir}/Decision_Tree_Forward_CM_Weight{forwardWeight}.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cmCenterDT, annot=True, fmt='d', cmap='Blues', xticklabels=targetNames, yticklabels=targetNames)
-        plt.title(f'Center Decision Tree Confusion Matrix - Weight {centerWeight}')
-        plt.xlabel('Predicted Label')
-        plt.xticks(rotation=25)
-        plt.ylabel('True Label')
-        plt.savefig(f'{config.resultsDir}/Decision_Tree_Center_CM_Weight{centerWeight}.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        #ensemble charts
-        #bar
-        plt.figure(figsize=(8, 5))
-        plt.bar(x, enViz, width,color=['#009CDE','#050707','#F57B20'])
-        plt.xticks(x, positions)
-        plt.ylabel('Accuracy')
-        plt.title('Ensemble Accuracy by Position')
-        plt.savefig(f'{config.resultsDir}/Ensemble_Accuracy.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        #confusion matrixes
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cmGuardEN, annot=True, fmt='d', cmap='Oranges',xticklabels=targetNames,yticklabels=targetNames)
-        plt.title(f'Guard Ensemble Confusion Matrix - Weight {guardWeight}')
-        plt.xlabel('Predicted Label')
-        plt.xticks(rotation=25)
-        plt.ylabel('True Label')
-        plt.savefig(f'{config.resultsDir}/Ensemble_Guard_CM_Weight{guardWeight}.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cmForwardEN, annot=True, fmt='d', cmap='Greys', xticklabels=targetNames, yticklabels=targetNames)
-        plt.title(f'Forward Ensemble Confusion Matrix- Weight {forwardWeight}')
-        plt.xlabel('Predicted Label')
-        plt.xticks(rotation=25)
-        plt.ylabel('True Label')
-        plt.savefig(f'{config.resultsDir}/Ensemble_Forward_CM_Weight{forwardWeight}.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cmCenterEN, annot=True, fmt='d', cmap='Blues', xticklabels=targetNames, yticklabels=targetNames)
-        plt.title(f'Center Ensemble Confusion Matrix- Weight {centerWeight}')
-        plt.xlabel('Predicted Label')
-        plt.xticks(rotation=25)
-        plt.ylabel('True Label')
-        plt.savefig(f'{config.resultsDir}/Ensemble_Center_CM_Weight{centerWeight}.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        #comparison chart
-        plt.figure(figsize=(8, 5))
-        plt.bar(x - width, enViz, width, label='Ensemble', color='#EFE3C6')
-        plt.bar(x + width, dtViz, width, label='Decision Tree', color='#000000')
-        plt.xticks(x, positions)
-        plt.ylabel('Accuracy')
-        plt.title('Model Comparison by Position')
-        plt.legend()
-        plt.savefig(f'{config.resultsDir}/Model_Comparison.png', dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # regression plot
-        plt.figure(figsize=(8, 5))
-        sns.regplot(x="draft_pick", y="tier", data=regData, color='#000000')
-        slope = rg.coef_[0]
-        intercept = rg.intercept_
-        plt.text(0.05, 0.95, f'y = {slope:.3f}x + {intercept:.3f}\nR² = {r2:.3f}', transform=plt.gca().transAxes,verticalalignment='top')
-        plt.xlabel('Draft Position')
-        plt.ylabel('Tier')
-        plt.title('Regression - Draft Position x Performance Tier')
-        plt.savefig(f'{config.resultsDir}/Draft_Perfomance_Regression.png', dpi=300, bbox_inches='tight')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

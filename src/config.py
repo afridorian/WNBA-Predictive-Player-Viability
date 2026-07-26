@@ -56,3 +56,6 @@ featureStatsNCAA = ['assist_turnover_ratio', 'assists', 'blocks', 'blocks_per_mi
                         'perimeter_shooting', 'points', 'points_per_minute', 'rebounds', 'rebounds_per_minute', 'steal_turnover_ratio', 'steals', 'steals_per_minute', 'three_point_attempt_rate',
                         'three_point_field_goal_percentage', 'three_point_field_goals_attempted', 'three_point_field_goals_made', 'true_shooting_percentage', 'turnovers', 'turnovers_per_minute']
 
+#positions
+positionAbbvr = ['G','F','C']
+positions = ['guard','forward','center']
